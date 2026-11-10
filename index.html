@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#020617">
+    <title>Oncowizai's PulmoSim by Dr Aditya Narayan</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['"Space Mono"', 'monospace'],
+                    },
+                    colors: {
+                        slate: { 850: '#151f32', 950: '#020617' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* strict viewport confinement to prevent longitudinal scrolling */
+        html, body {
+            height: 100%;
+            height: 100dvh;
+            overflow: hidden;
+            background-color: #020617;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Smooth hardware-accelerated SVG transitions */
+        .lung-tissue { transition: fill 0.6s cubic-bezier(0.4, 0, 0.2, 1); will-change: fill; }
+        .tar-particle { pointer-events: none; transition: opacity 0.5s ease; }
+        
+        /* Animations */
+        .breathing-healthy { animation: breathe 4s ease-in-out infinite; transform-origin: center top; }
+        .cough-shake { animation: cough 0.4s ease-in-out infinite alternate; }
+        .risk-pulse { animation: riskPulse 1.5s infinite alternate; }
+        
+        @keyframes breathe {
+            0%, 100% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.04) translateY(-2px); }
+        }
+        @keyframes cough {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(-2px, 2px) rotate(-1deg); }
+            50% { transform: translate(2px, -2px) rotate(1deg); }
+            75% { transform: translate(-1px, 1px) rotate(-0.5deg); }
+            100% { transform: translate(1px, -1px) rotate(0.5deg); }
+        }
+        @keyframes riskPulse {
+            from { box-shadow: 0 0 10px rgba(225, 29, 72, 0.4); border-color: rgba(225, 29, 72, 0.5); }
+            to { box-shadow: 0 0 30px rgba(225, 29, 72, 0.8); border-color: rgba(225, 29, 72, 1); }
+        }
+
+        /* Smoke Emissions Animation */
+        .smoke-plume {
+            opacity: 0;
+            transform-origin: bottom center;
+            animation: smokeRise 2.5s infinite linear;
+        }
+        .smoke-delay-1 { animation-delay: 0.5s; }
+        .smoke-delay-2 { animation-delay: 1.0s; }
+        .smoke-delay-3 { animation-delay: 1.5s; }
+        .smoke-delay-4 { animation-delay: 2.0s; }
+        
+        @keyframes smokeRise {
+            0% { transform: translateY(0) scale(0.8) rotate(0deg); opacity: 0; }
+            15% { opacity: 0.9; }
+            80% { opacity: 0.2; }
+            100% { transform: translateY(-60px) scale(3.5) rotate(25deg); opacity: 0; filter: blur(5px); }
+        }
+
+        /* Custom Slick Range Sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 28px;
+            background: transparent;
+            margin: 0;
+        }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 999px;
+            background: #1e293b;
+            border: 1px solid #334155;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px; width: 20px;
+            border-radius: 50%;
+            background: #38bdf8;
+            margin-top: -8px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 0 0 3px #0284c7;
+            transition: transform 0.1s;
+        }
+        input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
+        
+        /* Dynamic Slider Tracks classes applied via JS */
+        .slider-amber::-webkit-slider-thumb { background: #fbbf24; box-shadow: inset 0 0 0 4px #b45309; }
+        .slider-orange::-webkit-slider-thumb { background: #fb923c; box-shadow: inset 0 0 0 4px #c2410c; }
+        .slider-rose::-webkit-slider-thumb { background: #fb7185; box-shadow: inset 0 0 0 4px #be123c; }
+
+        /* Accordion CSS Trick for smooth height animation */
+        .accordion-content-grid {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .accordion-content-grid > div {
+            overflow: hidden;
+        }
+        .accordion-content-grid.open {
+            grid-template-rows: 1fr;
+        }
+
+        /* Custom Scrollbar for Right Panel */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="text-slate-200 flex flex-col md:flex-row w-full">
+
+    <!-- LEFT SIDE: Visuals & Warning Label -->
+    <section class="relative w-full md:w-1/2 h-[45dvh] md:h-full bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col items-center justify-center p-2 overflow-hidden shrink-0 shadow-2xl z-10">
+        
+        <!-- WARNING LABEL ON THE LUNG -->
+        <div id="riskWarningContainer" class="absolute top-2 md:top-4 left-1/2 -translate-x-1/2 px-6 py-2 bg-slate-950/80 backdrop-blur-md border border-blue-900 rounded-3xl shadow-[0_0_15px_rgba(37,99,235,0.2)] flex flex-col items-center z-20 transition-colors duration-500 min-w-[200px]">
+            <div class="flex items-center gap-2 mb-0.5">
+                <i id="warningIcon" class="fa-solid fa-shield-heart text-blue-400 text-xs transition-colors duration-500"></i>
+                <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-slate-300 font-bold">Risk of Lung Cancer</span>
+            </div>
+            <span id="mainRiskLabel" class="text-3xl md:text-4xl font-mono font-black text-blue-400 drop-shadow-[0_0_10px_rgba(56,189,248,0.4)] transition-colors duration-500 leading-none">0.3%</span>
+            <span id="rrLabel" class="text-[9px] text-slate-400 mt-1 font-mono bg-slate-900 px-2 py-0.5 rounded-full border border-slate-800">1.0× BASELINE</span>
+        </div>
+
+        <!-- Central SVG -->
+        <svg id="lungSvg" class="w-full h-full max-h-[250px] md:max-h-[420px] breathing-healthy drop-shadow-2xl mt-10 md:mt-12" viewBox="0 0 420 520" preserveAspectRatio="xMidYMid meet" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- Blue Healthy Gradients (Dynamically modified to black via JS) -->
+                <linearGradient id="lungGradLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop id="gradL1" offset="0%" stop-color="#38bdf8" />
+                    <stop id="gradL2" offset="100%" stop-color="#2563eb" />
+                </linearGradient>
+                <linearGradient id="lungGradRight" x1="100%" y1="0%" x2="0%" y2="100%">
+                    <stop id="gradR1" offset="0%" stop-color="#38bdf8" />
+                    <stop id="gradR2" offset="100%" stop-color="#2563eb" />
+                </linearGradient>
+                <!-- Tumor Glow -->
+                <filter id="tumorGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+                <!-- PM2.5 Grain Filter -->
+                <filter id="pmGrain" color-interpolation-filters="sRGB">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" result="noise" />
+                    <feColorMatrix id="pmAlpha" type="matrix" values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0   0 0 0 0 0" in="noise" result="coloredNoise"/>
+                    <feComposite operator="in" in="coloredNoise" in2="SourceGraphic" result="composite"/>
+                    <feBlend mode="multiply" in="composite" in2="SourceGraphic"/>
+                </filter>
+            </defs>
+
+            <!-- Trachea & Bronchi -->
+            <g id="tracheaGroup">
+                <rect x="195" y="80" width="30" height="100" rx="8" fill="#bae6fd" stroke="#0284c7" stroke-width="3"/>
+                <path d="M195 95 h30 M195 110 h30 M195 125 h30 M195 140 h30 M195 155 h30" stroke="#0369a1" stroke-width="2.5" stroke-linecap="round"/>
+                <path d="M210 180 L160 240 M160 240 L130 300 M160 240 L170 320 M210 180 L260 240 M260 240 L290 300 M260 240 L250 320" stroke="#0284c7" stroke-width="4.5" stroke-linecap="round" />
+            </g>
+
+            <!-- Left Lung -->
+            <path class="lung-tissue" d="M 195 185 C 190 140, 140 150, 110 195 C 75 245, 60 320, 75 390 C 85 435, 120 460, 160 450 C 185 442, 195 405, 195 365 C 195 310, 198 250, 195 185 Z" fill="url(#lungGradLeft)" filter="url(#pmGrain)" stroke="#1e3a8a" stroke-width="3" />
+
+            <!-- Right Lung -->
+            <path class="lung-tissue" d="M 225 185 C 230 140, 280 150, 310 195 C 345 245, 360 320, 345 390 C 335 435, 300 460, 260 450 C 235 445, 225 395, 230 365 C 235 320, 222 250, 225 185 Z" fill="url(#lungGradRight)" filter="url(#pmGrain)" stroke="#1e3a8a" stroke-width="3" />
+
+            <!-- Tar Deposits & Tumors -->
+            <g id="tarGroup"></g>
+            <g id="tumorGroup"></g>
+
+            <!-- Anthropomorphic Face -->
+            <g id="faceGroup">
+                <!-- Left Eye -->
+                <g transform="translate(135, 280)">
+                    <ellipse cx="0" cy="0" rx="14" ry="16" fill="#fff" />
+                    <circle cx="2" cy="0" r="7" fill="#0f172a" />
+                    <circle cx="4" cy="-3" r="2.5" fill="#fff" />
+                    <path id="leftBrow" d="M -12 -20 Q 0 -25 12 -20" stroke="#0f172a" stroke-width="3" stroke-linecap="round" fill="none"/>
+                    <path id="leftTear" class="opacity-0 transition-opacity" d="M -16 -2 C -16 -2, -22 6, -22 11 C -22 15, -18 18, -15 18 C -12 18, -10 15, -10 11 Z" fill="#38bdf8"/>
+                </g>
+                <!-- Right Eye -->
+                <g transform="translate(285, 280)">
+                    <ellipse cx="0" cy="0" rx="14" ry="16" fill="#fff" />
+                    <circle cx="-2" cy="0" r="7" fill="#0f172a" />
+                    <circle cx="0" cy="-3" r="2.5" fill="#fff" />
+                    <path id="rightBrow" d="M -12 -20 Q 0 -25 12 -20" stroke="#0f172a" stroke-width="3" stroke-linecap="round" fill="none"/>
+                    <path id="rightTear" class="opacity-0 transition-opacity" d="M 16 -2 C 16 -2, 22 6, 22 11 C 22 15, 18 18, 15 18 C 12 18, 10 15, 10 11 Z" fill="#38bdf8"/>
+                </g>
+                <!-- Mouth -->
+                <path id="mouth" d="M 195 315 Q 210 330 225 315" stroke="#0f172a" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+            </g>
+        </svg>
+
+        <!-- Vitality Footer (Left Pane) -->
+        <div class="absolute bottom-2 left-6 right-6 lg:left-12 lg:right-12">
+            <div class="flex justify-between text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <span>Pulmonary Vitality</span>
+                <span id="bottomVitalTxt" class="text-cyan-400">100%</span>
+            </div>
+            <div class="w-full h-1.5 md:h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                <div id="bottomVitalBar" class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500" style="width:100%"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- RIGHT SIDE: Controls & Accordions -->
+    <section class="w-full md:w-1/2 h-[55dvh] md:h-full flex flex-col bg-slate-950 shrink-0">
+        
+        <!-- Header -->
+        <header class="shrink-0 p-3 border-b border-slate-800/50 flex justify-between items-center z-10 bg-slate-950/90 backdrop-blur">
+            <div>
+                <h1 class="text-base md:text-lg font-bold text-white leading-tight">Oncowizai's PulmoSim</h1>
+                <p class="text-[9px] md:text-[10px] text-blue-400 font-mono tracking-wide uppercase">By Dr Aditya Narayan</p>
+            </div>
+            <button id="resetBtn" class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-[10px] md:text-xs font-bold uppercase tracking-wide border border-slate-700 active:scale-95 transition hover:bg-slate-700">
+                <i class="fa-solid fa-rotate-right mr-1"></i> Reset
+            </button>
+        </header>
+
+        <!-- Accordions Container (Scrollable only if contents exceed window height) -->
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-3 md:p-4 space-y-2 pb-safe-bottom">
+            
+            <!-- Accordion 1: Combustible Inhalants -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl md:rounded-2xl overflow-hidden transition-all duration-300 shadow-lg">
+                <button class="accordion-btn w-full p-3 flex justify-between items-center text-left bg-slate-800/50 hover:bg-slate-800 transition-colors" data-target="acc-1">
+                    <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 shrink-0 text-sm">
+                            <i class="fa-solid fa-smoking"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs md:text-sm">Combustible Inhalants</div>
+                            <div class="text-[9px] md:text-[10px] text-slate-400">Cigarettes & Bidis</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-slate-500 text-sm transition-transform duration-300 chevron-icon rotate-180"></i>
+                </button>
+                <div id="acc-1" class="accordion-content-grid open">
+                    <div>
+                        <div class="p-3 pt-0 space-y-3 border-t border-slate-800 mt-1">
+                            <!-- Cigarettes -->
+                            <div class="space-y-1.5">
+                                <div>
+                                    <div class="text-xs font-semibold text-slate-200">Cigarettes Smoked</div>
+                                    <div class="text-[9px] md:text-[10px] text-slate-500">Avg per day</div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div id="cigAnimIcon" class="relative w-12 h-10 hidden items-center justify-center shrink-0">
+                                        <i class="fa-solid fa-smoking text-amber-500/90 absolute bottom-0 right-0 text-3xl"></i>
+                                        <div class="absolute w-2 h-2 bg-slate-200 rounded-full blur-[1px] smoke-plume bottom-4 left-2"></div>
+                                        <div class="absolute w-2.5 h-2.5 bg-slate-200 rounded-full blur-[1.5px] smoke-plume smoke-delay-1 bottom-4 left-1"></div>
+                                        <div class="absolute w-2 h-2 bg-slate-200 rounded-full blur-[1px] smoke-plume smoke-delay-2 bottom-4 left-3"></div>
+                                        <div class="absolute w-3 h-3 bg-slate-200 rounded-full blur-[2px] smoke-plume smoke-delay-3 bottom-4 left-2"></div>
+                                        <div class="absolute w-2.5 h-2.5 bg-slate-200 rounded-full blur-[1px] smoke-plume smoke-delay-4 bottom-4 left-1"></div>
+                                    </div>
+                                    <span id="cigDayVal" class="text-xl md:text-2xl font-mono font-bold text-amber-400">0</span>
+                                </div>
+                            </div>
+                            <input id="cigDaySlider" type="range" class="slider-amber" min="0" max="60" value="0">
+                            
+                            <div class="flex justify-between items-end pt-0.5">
+                                <div class="text-xs font-semibold text-slate-200">Years Smoking</div>
+                                <span id="cigYrVal" class="text-base md:text-lg font-mono font-bold text-amber-400">0 yr</span>
+                            </div>
+                            <input id="cigYrSlider" type="range" class="slider-amber" min="0" max="50" value="0">
+                        </div>
+                        <hr class="border-slate-800 my-1">
+                        <!-- Bidis -->
+                        <div class="p-3 pt-0 space-y-3">
+                            <div class="flex justify-between items-end">
+                                <div>
+                                    <div class="text-xs font-semibold text-slate-200">Bidis (Beedi)</div>
+                                    <div class="text-[9px] md:text-[10px] text-slate-500">1.5× Tar & Nicotine Toxicity</div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div id="bidiAnimIcon" class="relative w-10 h-10 hidden items-center justify-center shrink-0">
+                                        <i class="fa-solid fa-fire-flame-curved text-orange-500/90 absolute bottom-0 text-3xl"></i>
+                                        <div class="absolute w-2 h-2 bg-slate-200 rounded-full blur-[1px] smoke-plume bottom-4"></div>
+                                        <div class="absolute w-2.5 h-2.5 bg-slate-200 rounded-full blur-[1.5px] smoke-plume smoke-delay-1 bottom-4 -ml-2"></div>
+                                        <div class="absolute w-2 h-2 bg-slate-200 rounded-full blur-[1px] smoke-plume smoke-delay-2 bottom-4 ml-1"></div>
+                                        <div class="absolute w-3 h-3 bg-slate-200 rounded-full blur-[2px] smoke-plume smoke-delay-3 bottom-4 -ml-1"></div>
+                                        <div class="absolute w-2.5 h-2.5 bg-slate-200 rounded-full blur-[1px] smoke-plume smoke-delay-4 bottom-4 ml-2"></div>
+                                    </div>
+                                    <span id="bidiDayVal" class="text-xl md:text-2xl font-mono font-bold text-orange-400">0</span>
+                                </div>
+                            </div>
+                            <input id="bidiDaySlider" type="range" class="slider-orange" min="0" max="50" value="0">
+                            <div class="flex justify-between items-end pt-0.5">
+                                <div class="text-xs font-semibold text-slate-200">Years Smoking Bidis</div>
+                                <span id="bidiYrVal" class="text-base md:text-lg font-mono font-bold text-orange-400">0 yr</span>
+                            </div>
+                            <input id="bidiYrSlider" type="range" class="slider-orange" min="0" max="50" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion 2: Smokeless Tobacco -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl md:rounded-2xl overflow-hidden transition-all duration-300 shadow-lg">
+                <button class="accordion-btn w-full p-3 flex justify-between items-center text-left bg-slate-800/50 hover:bg-slate-800 transition-colors" data-target="acc-2">
+                    <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30 shrink-0 text-sm">
+                            <i class="fa-solid fa-tooth"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs md:text-sm">Smokeless Tobacco</div>
+                            <div class="text-[9px] md:text-[10px] text-slate-400">Gutkha / Khaini / Zarda</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-slate-500 text-sm transition-transform duration-300 chevron-icon"></i>
+                </button>
+                <div id="acc-2" class="accordion-content-grid">
+                    <div>
+                        <div class="p-3 pt-0 border-t border-slate-800 mt-1 flex justify-between items-center">
+                            <div class="pr-3">
+                                <p class="text-[11px] md:text-xs text-slate-300">Daily Chewing Habit</p>
+                                <p class="text-[9px] text-rose-400/80 mt-0.5 leading-snug">
+                                    High risk for oral/esophageal cancer. Induces systemic oxidative stress affecting lungs mildly.
+                                </p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                <input type="checkbox" id="chewToggle" class="sr-only peer">
+                                <div class="w-10 h-5 bg-slate-800 border border-slate-600 rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600 shadow-inner"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion 3: Environment & Occupation -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl md:rounded-2xl overflow-hidden transition-all duration-300 shadow-lg">
+                <button class="accordion-btn w-full p-3 flex justify-between items-center text-left bg-slate-800/50 hover:bg-slate-800 transition-colors" data-target="acc-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0 text-sm">
+                            <i class="fa-solid fa-industry"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs md:text-sm">Environment & Hazards</div>
+                            <div class="text-[9px] md:text-[10px] text-slate-400">Radon, PM2.5, Asbestos</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-slate-500 text-sm transition-transform duration-300 chevron-icon"></i>
+                </button>
+                <div id="acc-3" class="accordion-content-grid">
+                    <div>
+                        <div class="p-3 pt-0 space-y-3 border-t border-slate-800 mt-1">
+                            
+                            <!-- Radon -->
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between items-end">
+                                    <div>
+                                        <div class="text-xs font-semibold text-slate-200">Radon Gas Exposure</div>
+                                        <div class="text-[9px] md:text-[10px] text-slate-500">Indoor Level (pCi/L)</div>
+                                    </div>
+                                    <span id="radonVal" class="text-base md:text-lg font-mono font-bold text-emerald-400">1</span>
+                                </div>
+                                <input id="radonSlider" type="range" class="slider-amber" min="1" max="20" value="1">
+                            </div>
+
+                            <hr class="border-slate-800 my-1">
+                            
+                            <!-- PM2.5 -->
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between items-end">
+                                    <div>
+                                        <div class="text-xs font-semibold text-slate-200">Particulate Matter (PM2.5)</div>
+                                        <div class="text-[9px] md:text-[10px] text-slate-500">Annual avg (µg/m³)</div>
+                                    </div>
+                                    <span id="pmVal" class="text-base md:text-lg font-mono font-bold text-emerald-400">10</span>
+                                </div>
+                                <input id="pmSlider" type="range" class="slider-amber" min="5" max="150" value="10" step="5">
+                            </div>
+
+                            <hr class="border-slate-800 my-1">
+                            
+                            <!-- Asbestos -->
+                            <div class="flex justify-between items-center">
+                                <div class="pr-3">
+                                    <h2 class="text-[11px] md:text-xs font-bold text-slate-200">Asbestos / Silica Exposure</h2>
+                                    <p class="text-[9px] text-emerald-400/80 mt-0.5">Multiplies risk massively if combined with smoking.</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" id="asbestosToggle" class="sr-only peer">
+                                    <div class="w-10 h-5 bg-slate-800 border border-slate-600 rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion 4: Mitigation -->
+            <div class="bg-purple-950/20 border border-purple-900/50 rounded-xl md:rounded-2xl overflow-hidden transition-all duration-300 shadow-lg">
+                <button class="accordion-btn w-full p-3 flex justify-between items-center text-left bg-purple-900/20 hover:bg-purple-900/40 transition-colors" data-target="acc-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-purple-500/30 text-purple-300 flex items-center justify-center border border-purple-500/40 shrink-0 text-sm">
+                            <i class="fa-solid fa-hand-holding-medical"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs md:text-sm">Mitigation</div>
+                            <div class="text-[9px] md:text-[10px] text-purple-300">Smoking Cessation</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-purple-500/70 text-sm transition-transform duration-300 chevron-icon"></i>
+                </button>
+                <div id="acc-4" class="accordion-content-grid">
+                    <div>
+                        <div class="p-3 pt-0 space-y-2 border-t border-purple-900/30 mt-1">
+                            <div class="flex justify-between items-end">
+                                <div>
+                                    <div class="text-xs font-semibold text-slate-200">Years Since Quitting</div>
+                                    <div class="text-[9px] md:text-[10px] text-purple-400">Risk drops up to 70% after 15 yrs</div>
+                                </div>
+                                <span id="quitVal" class="text-base md:text-lg font-mono font-bold text-purple-400">0 yr</span>
+                            </div>
+                            <input id="quitSlider" type="range" class="slider-rose" min="0" max="25" value="0">
+                            
+                            <div class="mt-2 pt-2 border-t border-purple-900/30">
+                                <div class="flex justify-between items-end mb-1">
+                                    <div class="text-[11px] md:text-xs font-semibold text-slate-300">Remaining Excess Risk</div>
+                                    <span id="remainingRiskVal" class="text-[11px] md:text-xs font-mono font-bold text-rose-400">100%</span>
+                                </div>
+                                <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                                    <div id="remainingRiskBar" class="h-full bg-gradient-to-r from-rose-500 to-amber-400 transition-all duration-500" style="width:100%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion 5: References -->
+            <div class="bg-slate-900/30 border border-slate-800/50 rounded-xl md:rounded-2xl overflow-hidden transition-all duration-300">
+                <button class="accordion-btn w-full p-2.5 flex justify-between items-center text-left hover:bg-slate-800/40 transition-colors" data-target="acc-5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-book-medical text-slate-300 text-sm"></i>
+                        <div class="font-bold text-slate-100 text-xs md:text-sm">Scientific & Epidemiological References</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform duration-300 chevron-icon"></i>
+                </button>
+                <div id="acc-5" class="accordion-content-grid">
+                    <div>
+                        <div class="p-3 pt-0 text-[10px] md:text-xs text-slate-200 space-y-2 border-t border-slate-800/50 mt-2 leading-relaxed text-justify">
+                            <p><strong class="text-white">Smoking & Cessation:</strong> Doll R, Peto R, et al. Mortality in relation to smoking: 50 years' observations on male British doctors. <em>BMJ</em> (2004). Serves as the baseline pack-year cumulative risk model.</p>
+                            <p><strong class="text-white">Bidi Toxicity:</strong> Prasad R, et al. Bidi smoking and lung cancer. <em>Indian J Cancer</em>. Accounts for the 1.5× to 2× higher tar and nicotine yield per gram compared to standard manufactured cigarettes.</p>
+                            <p><strong class="text-white">Radon Gas:</strong> Darby S, et al. Radon in homes and risk of lung cancer: collaborative analysis of individual data from 13 European case-control studies. <em>BMJ</em> (2005).</p>
+                            <p><strong class="text-white">Air Pollution (PM2.5):</strong> Loomis D, et al. The carcinogenicity of outdoor air pollution. <em>Lancet Oncol</em> (2013). IARC Monograph linking ambient fine particulate matter to adenocarcinoma.</p>
+                            <p><strong class="text-white">Asbestos Synergy:</strong> Markowitz SB, et al. Asbestos, asbestosis, smoking, and lung cancer. <em>Am J Respir Crit Care Med</em> (2013). Demonstrates the massive (~50×) synergistic multiplicative risk of combined asbestos and smoking.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom safe space padding -->
+            <div class="h-4"></div>
+
+        </div>
+    </section>
+
+    <!-- Script Logic -->
+    <script>
+        // DOM Elements
+        const cigDaySlider = document.getElementById('cigDaySlider');
+        const cigYrSlider = document.getElementById('cigYrSlider');
+        const bidiDaySlider = document.getElementById('bidiDaySlider');
+        const bidiYrSlider = document.getElementById('bidiYrSlider');
+        const chewToggle = document.getElementById('chewToggle');
+        const radonSlider = document.getElementById('radonSlider');
+        const pmSlider = document.getElementById('pmSlider');
+        const asbestosToggle = document.getElementById('asbestosToggle');
+        const quitSlider = document.getElementById('quitSlider');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Texts
+        const cigDayVal = document.getElementById('cigDayVal');
+        const cigYrVal = document.getElementById('cigYrVal');
+        const bidiDayVal = document.getElementById('bidiDayVal');
+        const bidiYrVal = document.getElementById('bidiYrVal');
+        const radonVal = document.getElementById('radonVal');
+        const pmVal = document.getElementById('pmVal');
+        const quitVal = document.getElementById('quitVal');
+        const remainingRiskVal = document.getElementById('remainingRiskVal');
+        const remainingRiskBar = document.getElementById('remainingRiskBar');
+        
+        // Output Elements (Warning Label)
+        const mainRiskLabel = document.getElementById('mainRiskLabel');
+        const rrLabel = document.getElementById('rrLabel');
+        const riskWarningContainer = document.getElementById('riskWarningContainer');
+        const warningIcon = document.getElementById('warningIcon');
+        const bottomVitalTxt = document.getElementById('bottomVitalTxt');
+        const bottomVitalBar = document.getElementById('bottomVitalBar');
+
+        // Icons
+        const cigAnimIcon = document.getElementById('cigAnimIcon');
+        const bidiAnimIcon = document.getElementById('bidiAnimIcon');
+
+        // SVG Elements
+        const tarGroup = document.getElementById('tarGroup');
+        const tumorGroup = document.getElementById('tumorGroup');
+        const gradL1 = document.getElementById('gradL1');
+        const gradL2 = document.getElementById('gradL2');
+        const gradR1 = document.getElementById('gradR1');
+        const gradR2 = document.getElementById('gradR2');
+        const lungSvg = document.getElementById('lungSvg');
+        const mouth = document.getElementById('mouth');
+        const leftBrow = document.getElementById('leftBrow');
+        const rightBrow = document.getElementById('rightBrow');
+        const leftTear = document.getElementById('leftTear');
+        const rightTear = document.getElementById('rightTear');
+
+        // Accordion Logic (Exclusive Open)
+        const accordions = document.querySelectorAll('.accordion-btn');
+        accordions.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.getAttribute('data-target');
+                const targetContent = document.getElementById(targetId);
+                const isCurrentlyOpen = targetContent.classList.contains('open');
+
+                // Close all
+                document.querySelectorAll('.accordion-content-grid').forEach(content => {
+                    content.classList.remove('open');
+                });
+                document.querySelectorAll('.chevron-icon').forEach(icon => {
+                    icon.classList.remove('rotate-180');
+                });
+
+                // Toggle the clicked one
+                if (!isCurrentlyOpen) {
+                    targetContent.classList.add('open');
+                    btn.querySelector('.chevron-icon').classList.add('rotate-180');
+                }
+            });
+        });
+
+        // Initialize SVG Particles (Tar & Tumors)
+        const TAR_PTS = Array.from({length: 45}, () => ({
+            cx: 70 + Math.random()*210, 
+            cy: 190 + Math.random()*240, 
+            r: 3 + Math.random()*6
+        }));
+        
+        // Filter out particles outside lung approximation
+        const VALID_TAR = TAR_PTS.filter(p => {
+            const isLeft = p.cx > 70 && p.cx < 185 && p.cy > 185 && p.cy < 440;
+            const isRight = p.cx > 230 && p.cx < 345 && p.cy > 185 && p.cy < 440;
+            return isLeft || isRight;
+        });
+
+        VALID_TAR.forEach((pt, i) => {
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", pt.cx);
+            circle.setAttribute("cy", pt.cy);
+            circle.setAttribute("r", pt.r);
+            circle.setAttribute("fill", "#020617"); // Dark Slate
+            circle.setAttribute("opacity", "0");
+            circle.setAttribute("id", `tar-${i}`);
+            circle.setAttribute("filter", "blur(1px)");
+            tarGroup.appendChild(circle);
+        });
+
+        const TUMORS = [
+            {cx: 130, cy: 300, r: 18, riskThresh: 5},
+            {cx: 280, cy: 370, r: 24, riskThresh: 9},
+            {cx: 160, cy: 390, r: 15, riskThresh: 14},
+            {cx: 290, cy: 250, r: 12, riskThresh: 20}
+        ];
+
+        TUMORS.forEach((t, i) => {
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.setAttribute("id", `tumor-${i}`);
+            g.setAttribute("opacity", "0");
+            g.style.transition = "opacity 0.8s";
+            
+            const p = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            p.setAttribute("cx", t.cx);
+            p.setAttribute("cy", t.cy);
+            p.setAttribute("r", t.r);
+            p.setAttribute("fill", "#4c0519"); // rose-950
+            p.setAttribute("stroke", "#e11d48"); // rose-600
+            p.setAttribute("stroke-width", "2");
+            p.setAttribute("filter", "url(#tumorGlow)");
+            
+            const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            core.setAttribute("cx", t.cx + t.r*0.2);
+            core.setAttribute("cy", t.cy - t.r*0.2);
+            core.setAttribute("r", t.r*0.4);
+            core.setAttribute("fill", "#881337");
+
+            g.appendChild(p);
+            g.appendChild(core);
+            tumorGroup.appendChild(g);
+        });
+
+        function interpolateColor(c1, c2, factor) {
+            const r = Math.round(c1.r + factor * (c2.r - c1.r));
+            const g = Math.round(c1.g + factor * (c2.g - c1.g));
+            const b = Math.round(c1.b + factor * (c2.b - c1.b));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        // Color definitions
+        const COLOR_BLUE_LIGHT = {r: 56, g: 189, b: 248}; // sky-400
+        const COLOR_BLUE_DARK = {r: 37, g: 99, b: 235};   // blue-600
+        const COLOR_SICK_LIGHT = {r: 51, g: 65, b: 85};   // slate-700
+        const COLOR_SICK_DARK = {r: 2, g: 6, b: 23};      // slate-950
+
+        function calculateModel() {
+            const cigDay = parseInt(cigDaySlider.value);
+            const cigYr = parseInt(cigYrSlider.value);
+            const bidiDay = parseInt(bidiDaySlider.value);
+            const bidiYr = parseInt(bidiYrSlider.value);
+            const chew = chewToggle.checked;
+            const radon = parseInt(radonSlider.value);
+            const pm25 = parseInt(pmSlider.value);
+            const asbestos = asbestosToggle.checked;
+            const quitYr = parseInt(quitSlider.value);
+
+            // Update UI Texts
+            cigDayVal.textContent = cigDay;
+            cigYrVal.textContent = cigYr + " yr";
+            bidiDayVal.textContent = bidiDay;
+            bidiYrVal.textContent = bidiYr + " yr";
+            radonVal.textContent = radon;
+            pmVal.textContent = pm25;
+            quitVal.textContent = quitYr + " yr";
+
+            // Smoke Animations
+            cigAnimIcon.style.display = cigDay > 0 ? "flex" : "none";
+            bidiAnimIcon.style.display = bidiDay > 0 ? "flex" : "none";
+
+            // Mathematics
+            const cigPackYrs = (cigDay / 20) * cigYr;
+            const bidiPackYrs = (bidiDay / 20) * bidiYr * 1.5;
+            const totalPackYrs = cigPackYrs + bidiPackYrs;
+
+            let risk = 1.0;
+            
+            // Base Smoking Risk
+            if (totalPackYrs > 0) {
+                if (totalPackYrs < 10) risk += totalPackYrs * 0.5;
+                else risk += 5.0 + (totalPackYrs - 10) * 0.8;
+            }
+
+            // Smokeless Tobacco
+            if (chew) risk *= 1.15;
+
+            // Environment
+            risk += ((radon - 1) / 4) * 0.2; // Radon
+            risk += Math.max(0, (pm25 - 10) / 10) * 0.15; // PM2.5
+
+            // Asbestos Synergism
+            if (asbestos) {
+                if (totalPackYrs > 5) risk *= 3.0; // Multiplier for smokers
+                else risk += 4.0; // Additive for non-smokers
+            }
+
+            let baseRisk = risk; // Risk before mitigation
+
+            // Mitigation - strictly reducing the smoking-induced excess risk portion
+            let reduction = 0;
+            if (quitYr > 0 && totalPackYrs > 0) {
+                reduction = Math.min(0.80, quitYr * 0.0533); // Max ~80% reduction at 15 years
+            }
+            
+            let smokingExcess = risk - 1.0;
+            risk = 1.0 + (smokingExcess * (1 - reduction));
+
+            risk = Math.max(1.0, risk);
+
+            // Calculate Visual Remaining Excess Risk percentage (100% -> 0% over 15 years)
+            let visualRemainingRisk = 100;
+            if (quitYr > 0) {
+                visualRemainingRisk = Math.max(0, 100 - (quitYr / 15) * 100);
+            }
+            
+            if (totalPackYrs === 0 && quitYr === 0) {
+                remainingRiskVal.textContent = "N/A";
+                remainingRiskBar.style.width = "0%";
+                remainingRiskBar.className = "h-full bg-slate-700 transition-all duration-500";
+                remainingRiskVal.className = "text-xs font-mono font-bold text-slate-500";
+            } else {
+                remainingRiskVal.textContent = `${Math.round(visualRemainingRisk)}%`;
+                remainingRiskBar.style.width = `${visualRemainingRisk}%`;
+                // Change bar color based on remaining risk
+                if (visualRemainingRisk < 40) {
+                    remainingRiskBar.className = "h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500";
+                    remainingRiskVal.className = "text-xs font-mono font-bold text-emerald-400";
+                } else if (visualRemainingRisk < 70) {
+                    remainingRiskBar.className = "h-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all duration-500";
+                    remainingRiskVal.className = "text-xs font-mono font-bold text-amber-400";
+                } else {
+                    remainingRiskBar.className = "h-full bg-gradient-to-r from-rose-500 to-red-400 transition-all duration-500";
+                    remainingRiskVal.className = "text-xs font-mono font-bold text-rose-400";
+                }
+            }
+
+            // Absolute Probability mapping (baseline ~0.3%)
+            let absProb = (0.003 * risk) * 100; 
+            if (absProb > 65) absProb = 65 + (risk * 0.02);
+
+            // Vitality Calculation
+            let vitality = 100 - (totalPackYrs * 1.6) - ((pm25 - 10) * 0.2);
+            if (chew) vitality -= 5;
+            if (quitYr > 0 && totalPackYrs > 0) vitality += (quitYr * 2.0); // Boosted vitality recovery
+            vitality = Math.max(5, Math.min(100, Math.round(vitality)));
+
+            // Base Damage Factor for Visuals (before healing)
+            let baseDamage = Math.min(1.0, (baseRisk - 1) / 20);
+            
+            // Seamless Interaction Fallback: 
+            // If the user tests the mitigation slider without inputting a smoking history first, 
+            // visually simulate a heavy smoking history so they can immediately see the rusty-to-blue transition.
+            let simulatedPackYrs = totalPackYrs;
+            if (totalPackYrs === 0 && quitYr > 0) {
+                baseDamage = 1.0; 
+                simulatedPackYrs = 50; 
+            }
+
+            updateVisuals(risk, absProb, vitality, baseDamage, chew, quitYr, simulatedPackYrs, pm25);
+        }
+
+        function updateVisuals(risk, absProb, vitality, baseDamage, chewActive, quitYr, totalPackYrs, pm25) {
+            // Text UI
+            mainRiskLabel.textContent = `${absProb.toFixed(1)}%`;
+            rrLabel.textContent = `${risk.toFixed(1)}× BASELINE`;
+            bottomVitalTxt.textContent = `${vitality}%`;
+            bottomVitalBar.style.width = `${vitality}%`;
+
+            // Color coding the massive Warning Label
+            if (risk < 1.5) {
+                // Healthy Blue
+                mainRiskLabel.className = "text-4xl md:text-5xl font-mono font-black text-blue-400 drop-shadow-[0_0_10px_rgba(56,189,248,0.4)] transition-colors duration-500 leading-none";
+                riskWarningContainer.className = "absolute top-4 md:top-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-slate-950/80 backdrop-blur-md border border-blue-900 rounded-3xl shadow-[0_0_15px_rgba(37,99,235,0.2)] flex flex-col items-center z-20 transition-all duration-500 min-w-[220px]";
+                warningIcon.className = "fa-solid fa-shield-heart text-blue-400 text-sm transition-colors duration-500";
+                
+                bottomVitalBar.className = "h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500";
+                lungSvg.classList.remove('cough-shake');
+            } else if (risk < 6.0) {
+                // Warning Amber
+                mainRiskLabel.className = "text-4xl md:text-5xl font-mono font-black text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)] transition-colors duration-500 leading-none";
+                riskWarningContainer.className = "absolute top-4 md:top-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-amber-950/80 backdrop-blur-md border border-amber-600 rounded-3xl shadow-[0_0_20px_rgba(217,119,6,0.3)] flex flex-col items-center z-20 transition-all duration-500 min-w-[220px]";
+                warningIcon.className = "fa-solid fa-triangle-exclamation text-amber-400 text-sm transition-colors duration-500";
+                
+                bottomVitalBar.className = "h-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all duration-500";
+                lungSvg.classList.remove('cough-shake');
+            } else {
+                // Danger Red / Rose
+                mainRiskLabel.className = "text-4xl md:text-5xl font-mono font-black text-rose-500 drop-shadow-[0_0_15px_rgba(225,29,72,0.8)] transition-colors duration-500 leading-none";
+                riskWarningContainer.className = "absolute top-4 md:top-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-rose-950/90 backdrop-blur-md border border-rose-600 rounded-3xl shadow-[0_0_30px_rgba(225,29,72,0.4)] flex flex-col items-center z-20 transition-all duration-500 min-w-[220px] risk-pulse";
+                warningIcon.className = "fa-solid fa-radiation text-rose-500 text-sm transition-colors duration-500";
+                
+                bottomVitalBar.className = "h-full bg-gradient-to-r from-rose-600 to-red-500 transition-all duration-500";
+                if (risk > 15) lungSvg.classList.add('cough-shake');
+                else lungSvg.classList.remove('cough-shake');
+            }
+
+            // Update SVG Colors
+            const COLOR_RUST_LIGHT = {r: 194, g: 81, b: 32};
+            const COLOR_RUST_DARK = {r: 120, g: 40, b: 15};
+            
+            let currentL1, currentL2, currentR1, currentR2;
+            let activeTar = 0;
+
+            if (quitYr > 0 && totalPackYrs > 0) {
+                // Healing Path (Rusty -> Blue)
+                const healingRatio = Math.min(1.0, quitYr / 15.0);
+                const visDamage = baseDamage * (1 - healingRatio);
+                
+                currentL1 = interpolateColor(COLOR_BLUE_LIGHT, COLOR_RUST_LIGHT, visDamage);
+                currentL2 = interpolateColor(COLOR_BLUE_DARK, COLOR_RUST_DARK, visDamage);
+                currentR1 = interpolateColor(COLOR_BLUE_LIGHT, COLOR_RUST_LIGHT, visDamage);
+                currentR2 = interpolateColor(COLOR_BLUE_DARK, COLOR_RUST_DARK, visDamage);
+
+                activeTar = Math.round(visDamage * VALID_TAR.length);
+            } else {
+                // Active Damage Path (Blue -> Black)
+                currentL1 = interpolateColor(COLOR_BLUE_LIGHT, COLOR_SICK_LIGHT, baseDamage);
+                currentL2 = interpolateColor(COLOR_BLUE_DARK, COLOR_SICK_DARK, baseDamage);
+                currentR1 = interpolateColor(COLOR_BLUE_LIGHT, COLOR_SICK_LIGHT, baseDamage);
+                currentR2 = interpolateColor(COLOR_BLUE_DARK, COLOR_SICK_DARK, baseDamage);
+
+                activeTar = Math.round(baseDamage * VALID_TAR.length);
+            }
+
+            gradL1.setAttribute('stop-color', currentL1);
+            gradL2.setAttribute('stop-color', currentL2);
+            gradR1.setAttribute('stop-color', currentR1);
+            gradR2.setAttribute('stop-color', currentR2);
+
+            // Tar Particles
+            VALID_TAR.forEach((_, i) => {
+                const pt = document.getElementById(`tar-${i}`);
+                if (pt) pt.setAttribute('opacity', i < activeTar ? (0.4 + Math.random()*0.5).toFixed(2) : "0");
+            });
+
+            // Tumors
+            TUMORS.forEach((t, i) => {
+                const node = document.getElementById(`tumor-${i}`);
+                if (node) {
+                    node.setAttribute('opacity', risk >= t.riskThresh ? "1" : "0");
+                }
+            });
+
+            // Face expressions
+            const effDamage = Math.min(1.0, (risk - 1) / 20);
+            if (effDamage < 0.2) {
+                mouth.setAttribute("d", "M 195 315 Q 210 330 225 315"); // Smile
+                leftBrow.setAttribute("d", "M -12 -20 Q 0 -25 12 -20");
+                rightBrow.setAttribute("d", "M -12 -20 Q 0 -25 12 -20");
+                leftTear.classList.add('opacity-0');
+                rightTear.classList.add('opacity-0');
+            } else if (effDamage < 0.6) {
+                mouth.setAttribute("d", "M 195 320 Q 210 315 225 320"); // Neutral
+                leftBrow.setAttribute("d", "M -12 -24 Q 0 -20 12 -24"); // Worried
+                rightBrow.setAttribute("d", "M -12 -24 Q 0 -20 12 -24");
+                leftTear.classList.add('opacity-0');
+                rightTear.classList.add('opacity-0');
+            } else {
+                mouth.setAttribute("d", "M 195 325 Q 210 300 225 325"); // Distress
+                leftBrow.setAttribute("d", "M -12 -16 Q 0 -26 12 -18"); // Pain
+                rightBrow.setAttribute("d", "M -12 -18 Q 0 -26 12 -16");
+                leftTear.classList.remove('opacity-0');
+                rightTear.classList.remove('opacity-0');
+            }
+
+            // PM2.5 Grain Filter updates
+            const pmAlpha = document.getElementById('pmAlpha');
+            if (pmAlpha) {
+                const grainIntensity = Math.max(0, Math.min(1.0, (pm25 - 5) / 145)); // Scale PM2.5 to 0-1
+                const alphaMultiplier = grainIntensity * 1.5; // Max opacity multiplier for visibility
+                pmAlpha.setAttribute("values", `0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 ${alphaMultiplier.toFixed(2)} 0`);
+            }
+        }
+
+        // Attach Listeners
+        [cigDaySlider, cigYrSlider, bidiDaySlider, bidiYrSlider, chewToggle, radonSlider, pmSlider, asbestosToggle, quitSlider].forEach(el => {
+            el.addEventListener('input', calculateModel);
+            el.addEventListener('change', calculateModel);
+        });
+
+        resetBtn.addEventListener('click', () => {
+            cigDaySlider.value = 0;
+            cigYrSlider.value = 0;
+            bidiDaySlider.value = 0;
+            bidiYrSlider.value = 0;
+            chewToggle.checked = false;
+            radonSlider.value = 1;
+            pmSlider.value = 10;
+            asbestosToggle.checked = false;
+            quitSlider.value = 0;
+            
+            // Open first accordion by default on reset
+            document.querySelector('[data-target="acc-1"]').click();
+            calculateModel();
+        });
+
+        // Initial Calc
+        calculateModel();
+    </script>
+</body>
+</html>
